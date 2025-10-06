@@ -1,7 +1,6 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { useRouter } from "next/navigation"
 import { Header } from "@/components/header"
 import { HeroSection } from "@/components/hero-section"
 import { StatsSection } from "@/components/stats-section"
@@ -9,9 +8,9 @@ import { ListingCard } from "@/components/listing-card"
 import { FiltersSidebar, type FilterOptions } from "@/components/filters-sidebar"
 import { ActiveFilters } from "@/components/active-filters"
 import { useAuth } from "@/components/auth-provider"
-import { mockListings } from "@/lib/mock-data"
 import { filterListings, getActiveFiltersCount } from "@/lib/filter-utils"
 import type { Listing, ListingType, Quartier, Ecole } from "@/lib/types"
+import { createBrowserClient } from "@/lib/supabase/client"
 
 const DEFAULT_FILTERS: FilterOptions = {
   types: [],
@@ -22,25 +21,39 @@ const DEFAULT_FILTERS: FilterOptions = {
 
 export default function HomePage() {
   const { user, isLoading } = useAuth()
-  const router = useRouter()
   const [allListings, setAllListings] = useState<Listing[]>([])
   const [filteredListings, setFilteredListings] = useState<Listing[]>([])
   const [filters, setFilters] = useState<FilterOptions>(DEFAULT_FILTERS)
+  const [isLoadingListings, setIsLoadingListings] = useState(true)
 
   useEffect(() => {
-    // Rediriger vers la page de connexion si non authentifié
-    if (!isLoading && !user) {
-      router.push("/auth/login")
-      return
+    const loadListings = async () => {
+      try {
+        const supabase = createBrowserClient()
+        const { data, error } = await supabase
+          .from("listings")
+          .select("*")
+          .eq("status", "validee")
+          .order("created_at", { ascending: false })
+
+        if (error) {
+          console.error("[v0] Error loading listings:", error)
+          return
+        }
+
+        if (data) {
+          setAllListings(data)
+          setFilteredListings(data)
+        }
+      } catch (error) {
+        console.error("[v0] Error loading listings:", error)
+      } finally {
+        setIsLoadingListings(false)
+      }
     }
 
-    // Charger les annonces validées
-    if (user) {
-      const validatedListings = mockListings.filter((l) => l.status === "validee")
-      setAllListings(validatedListings)
-      setFilteredListings(validatedListings)
-    }
-  }, [user, isLoading, router])
+    loadListings()
+  }, [])
 
   useEffect(() => {
     const filtered = filterListings(allListings, filters)
@@ -85,19 +98,15 @@ export default function HomePage() {
 
   const activeFiltersCount = getActiveFiltersCount(filters)
 
-  if (isLoading) {
+  if (isLoadingListings) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto"></div>
-          <p className="mt-4 text-muted-foreground">Chargement...</p>
+          <p className="mt-4 text-muted-foreground">Chargement des logements...</p>
         </div>
       </div>
     )
-  }
-
-  if (!user) {
-    return null
   }
 
   return (
@@ -162,7 +171,7 @@ export default function HomePage() {
 
       <footer className="border-t py-8 bg-muted/50">
         <div className="container text-center text-sm text-muted-foreground">
-          <p>&copy; 2025 Lomé Housing. Tous droits réservés.</p>
+          <p>&copy; 2025 RoomGo. Tous droits réservés.</p>
         </div>
       </footer>
     </div>

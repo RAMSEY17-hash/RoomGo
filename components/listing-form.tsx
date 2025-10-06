@@ -13,7 +13,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Checkbox } from "@/components/ui/checkbox"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { useAuth } from "./auth-provider"
-import type { ListingType, Quartier, Ecole, Listing } from "@/lib/types"
+import { createClient } from "@/lib/supabase/client"
+import type { ListingType, Quartier, Ecole } from "@/lib/types"
 import { AlertCircle, Plus, X } from "lucide-react"
 
 const QUARTIERS: Quartier[] = [
@@ -49,7 +50,7 @@ const EQUIPEMENTS_COMMUNS = [
 ]
 
 interface ListingFormProps {
-  initialData?: Listing
+  initialData?: any
   isEditing?: boolean
 }
 
@@ -135,45 +136,48 @@ export function ListingForm({ initialData, isEditing = false }: ListingFormProps
       return
     }
 
-    // Créer l'annonce
-    const newListing: Listing = {
-      id: initialData?.id || Date.now().toString(),
-      proprietaireId: user!.id,
-      proprietaireName: user!.username,
-      type: formData.type,
-      titre: formData.titre,
-      description: formData.description,
-      prix: Number.parseInt(formData.prix),
-      quartier: formData.quartier,
-      ecolesProches: formData.ecolesProches,
-      images: initialData?.images || ["/placeholder.svg?height=400&width=600"],
-      status: initialData?.status || "en_attente",
-      createdAt: initialData?.createdAt || new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-      superficie: formData.superficie ? Number.parseInt(formData.superficie) : undefined,
-      nombreChambres: formData.nombreChambres ? Number.parseInt(formData.nombreChambres) : undefined,
-      equipements: formData.equipements,
-      adresse: formData.adresse,
-      telephone: formData.telephone,
-    }
+    try {
+      const supabase = createClient()
 
-    // Sauvegarder dans localStorage
-    const listingsStr = localStorage.getItem("lome_housing_listings")
-    const listings: Listing[] = listingsStr ? JSON.parse(listingsStr) : []
+      const { data: userData, error: userError } = await supabase
+        .from("users")
+        .select("owner_key, username")
+        .eq("id", user!.id)
+        .single()
 
-    if (isEditing) {
-      const index = listings.findIndex((l) => l.id === initialData?.id)
-      if (index !== -1) {
-        listings[index] = newListing
+      if (userError) throw userError
+
+      const listingData = {
+        owner_id: user!.id,
+        title: formData.titre,
+        description: formData.description,
+        type: formData.type,
+        price: Number.parseInt(formData.prix),
+        quartier: formData.quartier,
+        nearby_schools: formData.ecolesProches,
+        address: formData.adresse,
+        amenities: formData.equipements,
+        images: ["/placeholder.svg?height=400&width=600"],
+        status: "pending",
+        owner_key: userData.owner_key, // Link listing to owner key
       }
-    } else {
-      listings.push(newListing)
+
+      if (isEditing && initialData?.id) {
+        const { error: updateError } = await supabase.from("listings").update(listingData).eq("id", initialData.id)
+
+        if (updateError) throw updateError
+      } else {
+        const { error: insertError } = await supabase.from("listings").insert(listingData)
+
+        if (insertError) throw insertError
+      }
+
+      router.push("/listings/my-listings")
+    } catch (err: any) {
+      setError(err.message || "Une erreur est survenue")
+    } finally {
+      setIsLoading(false)
     }
-
-    localStorage.setItem("lome_housing_listings", JSON.stringify(listings))
-
-    setIsLoading(false)
-    router.push("/listings/my-listings")
   }
 
   return (

@@ -3,7 +3,7 @@
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { useAuth } from "./auth-provider"
-import { PlusCircle, MessageCircle, User, LogOut, Shield, List } from "lucide-react"
+import { PlusCircle, MessageCircle, User, LogOut, List } from "lucide-react"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -75,15 +75,6 @@ export function Header() {
                     </Link>
                   </Button>
                 </>
-              )}
-
-              {user.type === "admin" && (
-                <Button variant="ghost" asChild>
-                  <Link href="/admin">
-                    <Shield className="h-5 w-5 mr-2" />
-                    Admin
-                  </Link>
-                </Button>
               )}
 
               <DropdownMenu>

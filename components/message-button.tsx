@@ -16,8 +16,18 @@ import { Label } from "@/components/ui/label"
 import { useAuth } from "./auth-provider"
 import { getOrCreateConversation, sendMessage } from "@/lib/messaging"
 import type { Listing } from "@/lib/types"
-import { MessageCircle } from "lucide-react"
+import { MessageCircle, LogIn } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 
 interface MessageButtonProps {
   listing: Listing
@@ -28,12 +38,13 @@ export function MessageButton({ listing }: MessageButtonProps) {
   const router = useRouter()
   const { toast } = useToast()
   const [isOpen, setIsOpen] = useState(false)
+  const [showLoginPrompt, setShowLoginPrompt] = useState(false)
   const [message, setMessage] = useState("")
   const [isLoading, setIsLoading] = useState(false)
 
   const handleClick = () => {
     if (!user) {
-      router.push("/auth/login")
+      setShowLoginPrompt(true)
       return
     }
 
@@ -86,6 +97,24 @@ export function MessageButton({ listing }: MessageButtonProps) {
         <MessageCircle className="h-4 w-4 mr-2" />
         Contacter le propriétaire
       </Button>
+
+      <AlertDialog open={showLoginPrompt} onOpenChange={setShowLoginPrompt}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Connexion requise</AlertDialogTitle>
+            <AlertDialogDescription>
+              Vous devez créer un compte ou vous connecter pour contacter un propriétaire.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Annuler</AlertDialogCancel>
+            <AlertDialogAction onClick={() => router.push("/auth/login")}>
+              <LogIn className="h-4 w-4 mr-2" />
+              Se connecter
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       <Dialog open={isOpen} onOpenChange={setIsOpen}>
         <DialogContent>
