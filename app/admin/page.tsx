@@ -19,11 +19,39 @@ import {
 import { Textarea } from "@/components/ui/textarea"
 import { Label } from "@/components/ui/label"
 import { useAuth } from "@/components/auth-provider"
-import { mockListings } from "@/lib/mock-data"
-import { getAllProprioKeys } from "@/lib/auth"
-import type { Listing } from "@/lib/types"
-import { CheckCircle, XCircle, Eye, MapPin, Phone, Key, Users, HomeIcon } from "lucide-react"
+import { createClient } from "@/lib/supabase/client"
+import { CheckCircle, XCircle, Eye, MapPin, Phone, Key, HomeIcon, Shield } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
+
+interface Listing {
+  id: string
+  owner_id: string
+  title: string
+  description: string
+  type: string
+  price: number
+  quartier: string
+  nearby_schools: string[]
+  address: string
+  amenities: string[]
+  images: string[]
+  status: string
+  owner_key: string | null // Added owner_key field
+  created_at: string
+  updated_at: string
+  users?: {
+    username: string
+    phone: string
+  }
+}
+
+interface OwnerKey {
+  id: string
+  key_value: string
+  is_used: boolean
+  owner_email: string | null
+  created_at: string
+}
 
 export default function AdminPage() {
   const { user, isLoading } = useAuth()
@@ -34,7 +62,7 @@ export default function AdminPage() {
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [actionType, setActionType] = useState<"approve" | "reject" | null>(null)
   const [rejectReason, setRejectReason] = useState("")
-  const [proprietaireKeys, setProprietaireKeys] = useState<string[]>([])
+  const [ownerKeys, setOwnerKeys] = useState<OwnerKey[]>([])
 
   useEffect(() => {
     if (!isLoading && (!user || user.type !== "admin")) {
@@ -43,17 +71,37 @@ export default function AdminPage() {
     }
 
     if (user) {
-      // Charger les annonces
-      const listingsStr = localStorage.getItem("lome_housing_listings")
-      const storedListings: Listing[] = listingsStr ? JSON.parse(listingsStr) : []
-      const allListings = [...mockListings, ...storedListings]
-      setListings(allListings)
-
-      // Charger les clés propriétaires
-      const keys = getAllProprioKeys()
-      setProprietaireKeys(keys)
+      loadData()
     }
   }, [user, isLoading, router])
+
+  const loadData = async () => {
+    const supabase = createClient()
+
+    const { data: listingsData, error: listingsError } = await supabase
+      .from("listings")
+      .select(`
+        *,
+        users (
+          username,
+          phone
+        )
+      `)
+      .order("created_at", { ascending: false })
+
+    if (!listingsError && listingsData) {
+      setListings(listingsData)
+    }
+
+    const { data: keysData, error: keysError } = await supabase
+      .from("owner_keys")
+      .select("*")
+      .order("created_at", { ascending: false })
+
+    if (!keysError && keysData) {
+      setOwnerKeys(keysData)
+    }
+  }
 
   const handleApprove = (listing: Listing) => {
     setSelectedListing(listing)
@@ -68,25 +116,27 @@ export default function AdminPage() {
     setIsDialogOpen(true)
   }
 
-  const confirmAction = () => {
+  const confirmAction = async () => {
     if (!selectedListing) return
 
-    const updatedListings = listings.map((l) => {
-      if (l.id === selectedListing.id) {
-        return {
-          ...l,
-          status: actionType === "approve" ? ("validee" as const) : ("rejetee" as const),
-          updatedAt: new Date().toISOString(),
-        }
-      }
-      return l
-    })
+    const supabase = createClient()
 
-    setListings(updatedListings)
+    const { error } = await supabase
+      .from("listings")
+      .update({
+        status: actionType === "approve" ? "approved" : "rejected",
+        rejection_reason: actionType === "reject" ? rejectReason : null,
+      })
+      .eq("id", selectedListing.id)
 
-    // Sauvegarder dans localStorage
-    const storedListings = updatedListings.filter((l) => !mockListings.find((m) => m.id === l.id))
-    localStorage.setItem("lome_housing_listings", JSON.stringify(storedListings))
+    if (error) {
+      toast({
+        title: "Erreur",
+        description: "Une erreur est survenue",
+        variant: "destructive",
+      })
+      return
+    }
 
     toast({
       title: actionType === "approve" ? "Annonce validée" : "Annonce rejetée",
@@ -99,6 +149,7 @@ export default function AdminPage() {
     setIsDialogOpen(false)
     setSelectedListing(null)
     setActionType(null)
+    loadData()
   }
 
   if (isLoading || !user || user.type !== "admin") {
@@ -109,11 +160,11 @@ export default function AdminPage() {
     )
   }
 
-  const enAttenteListings = listings.filter((l) => l.status === "en_attente")
-  const valideesListings = listings.filter((l) => l.status === "validee")
-  const rejeteesListings = listings.filter((l) => l.status === "rejetee")
+  const pendingListings = listings.filter((l) => l.status === "pending")
+  const approvedListings = listings.filter((l) => l.status === "approved")
+  const rejectedListings = listings.filter((l) => l.status === "rejected")
 
-  const typeLabels = {
+  const typeLabels: Record<string, string> = {
     chambre: "Chambre",
     studio: "Studio",
     appartement: "Appartement",
@@ -137,7 +188,7 @@ export default function AdminPage() {
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-sm text-muted-foreground">En attente</p>
-                    <p className="text-2xl font-bold">{enAttenteListings.length}</p>
+                    <p className="text-2xl font-bold">{pendingListings.length}</p>
                   </div>
                   <HomeIcon className="h-8 w-8 text-yellow-500" />
                 </div>
@@ -149,7 +200,7 @@ export default function AdminPage() {
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-sm text-muted-foreground">Validées</p>
-                    <p className="text-2xl font-bold">{valideesListings.length}</p>
+                    <p className="text-2xl font-bold">{approvedListings.length}</p>
                   </div>
                   <CheckCircle className="h-8 w-8 text-green-500" />
                 </div>
@@ -161,7 +212,7 @@ export default function AdminPage() {
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-sm text-muted-foreground">Rejetées</p>
-                    <p className="text-2xl font-bold">{rejeteesListings.length}</p>
+                    <p className="text-2xl font-bold">{rejectedListings.length}</p>
                   </div>
                   <XCircle className="h-8 w-8 text-red-500" />
                 </div>
@@ -172,10 +223,10 @@ export default function AdminPage() {
               <CardContent className="pt-6">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-sm text-muted-foreground">Total</p>
-                    <p className="text-2xl font-bold">{listings.length}</p>
+                    <p className="text-sm text-muted-foreground">Clés actives</p>
+                    <p className="text-2xl font-bold">{ownerKeys.filter((k) => k.is_used).length}</p>
                   </div>
-                  <Users className="h-8 w-8 text-primary" />
+                  <Key className="h-8 w-8 text-primary" />
                 </div>
               </CardContent>
             </Card>
@@ -183,22 +234,22 @@ export default function AdminPage() {
 
           <Tabs defaultValue="pending" className="space-y-6">
             <TabsList>
-              <TabsTrigger value="pending">En attente ({enAttenteListings.length})</TabsTrigger>
-              <TabsTrigger value="approved">Validées ({valideesListings.length})</TabsTrigger>
-              <TabsTrigger value="rejected">Rejetées ({rejeteesListings.length})</TabsTrigger>
+              <TabsTrigger value="pending">En attente ({pendingListings.length})</TabsTrigger>
+              <TabsTrigger value="approved">Validées ({approvedListings.length})</TabsTrigger>
+              <TabsTrigger value="rejected">Rejetées ({rejectedListings.length})</TabsTrigger>
               <TabsTrigger value="keys">Clés propriétaires</TabsTrigger>
             </TabsList>
 
             <TabsContent value="pending" className="space-y-4">
-              {enAttenteListings.length > 0 ? (
-                enAttenteListings.map((listing) => (
+              {pendingListings.length > 0 ? (
+                pendingListings.map((listing) => (
                   <Card key={listing.id}>
                     <CardContent className="pt-6">
                       <div className="flex flex-col md:flex-row gap-6">
                         <div className="relative h-48 w-full md:w-64 flex-shrink-0 overflow-hidden rounded-lg bg-muted">
                           <Image
                             src={listing.images[0] || "/placeholder.svg"}
-                            alt={listing.titre}
+                            alt={listing.title}
                             fill
                             className="object-cover"
                           />
@@ -207,14 +258,23 @@ export default function AdminPage() {
                         <div className="flex-1 space-y-3">
                           <div className="flex items-start justify-between gap-4">
                             <div>
-                              <h3 className="text-xl font-semibold mb-1">{listing.titre}</h3>
-                              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                              <h3 className="text-xl font-semibold mb-1">{listing.title}</h3>
+                              <div className="flex items-center gap-2 text-sm text-muted-foreground flex-wrap">
                                 <Badge variant="secondary">{typeLabels[listing.type]}</Badge>
                                 <span>•</span>
-                                <span>Par {listing.proprietaireName}</span>
+                                <span>Par {listing.users?.username}</span>
+                                {listing.owner_key && (
+                                  <>
+                                    <span>•</span>
+                                    <div className="flex items-center gap-1">
+                                      <Shield className="h-3 w-3" />
+                                      <span className="font-mono text-xs">{listing.owner_key}</span>
+                                    </div>
+                                  </>
+                                )}
                               </div>
                             </div>
-                            <p className="text-xl font-bold text-primary">{listing.prix.toLocaleString()} FCFA/mois</p>
+                            <p className="text-xl font-bold text-primary">{listing.price.toLocaleString()} FCFA/mois</p>
                           </div>
 
                           <p className="text-muted-foreground line-clamp-2">{listing.description}</p>
@@ -224,10 +284,12 @@ export default function AdminPage() {
                               <MapPin className="h-4 w-4 text-muted-foreground" />
                               <span>{listing.quartier}</span>
                             </div>
-                            <div className="flex items-center gap-1">
-                              <Phone className="h-4 w-4 text-muted-foreground" />
-                              <span>{listing.telephone}</span>
-                            </div>
+                            {listing.users?.phone && (
+                              <div className="flex items-center gap-1">
+                                <Phone className="h-4 w-4 text-muted-foreground" />
+                                <span>{listing.users.phone}</span>
+                              </div>
+                            )}
                           </div>
 
                           <div className="flex gap-2 pt-2">
@@ -259,22 +321,22 @@ export default function AdminPage() {
             </TabsContent>
 
             <TabsContent value="approved" className="space-y-4">
-              {valideesListings.length > 0 ? (
+              {approvedListings.length > 0 ? (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {valideesListings.map((listing) => (
+                  {approvedListings.map((listing) => (
                     <Card key={listing.id}>
                       <CardContent className="pt-6">
                         <div className="relative h-32 w-full overflow-hidden rounded-lg bg-muted mb-3">
                           <Image
                             src={listing.images[0] || "/placeholder.svg"}
-                            alt={listing.titre}
+                            alt={listing.title}
                             fill
                             className="object-cover"
                           />
                         </div>
-                        <h3 className="font-semibold mb-1 line-clamp-1">{listing.titre}</h3>
-                        <p className="text-sm text-muted-foreground mb-2">Par {listing.proprietaireName}</p>
-                        <p className="text-lg font-bold text-primary">{listing.prix.toLocaleString()} FCFA/mois</p>
+                        <h3 className="font-semibold mb-1 line-clamp-1">{listing.title}</h3>
+                        <p className="text-sm text-muted-foreground mb-2">Par {listing.users?.username}</p>
+                        <p className="text-lg font-bold text-primary">{listing.price.toLocaleString()} FCFA/mois</p>
                       </CardContent>
                     </Card>
                   ))}
@@ -287,22 +349,22 @@ export default function AdminPage() {
             </TabsContent>
 
             <TabsContent value="rejected" className="space-y-4">
-              {rejeteesListings.length > 0 ? (
+              {rejectedListings.length > 0 ? (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {rejeteesListings.map((listing) => (
+                  {rejectedListings.map((listing) => (
                     <Card key={listing.id}>
                       <CardContent className="pt-6">
                         <div className="relative h-32 w-full overflow-hidden rounded-lg bg-muted mb-3">
                           <Image
                             src={listing.images[0] || "/placeholder.svg"}
-                            alt={listing.titre}
+                            alt={listing.title}
                             fill
                             className="object-cover"
                           />
                         </div>
-                        <h3 className="font-semibold mb-1 line-clamp-1">{listing.titre}</h3>
-                        <p className="text-sm text-muted-foreground mb-2">Par {listing.proprietaireName}</p>
-                        <p className="text-lg font-bold text-primary">{listing.prix.toLocaleString()} FCFA/mois</p>
+                        <h3 className="font-semibold mb-1 line-clamp-1">{listing.title}</h3>
+                        <p className="text-sm text-muted-foreground mb-2">Par {listing.users?.username}</p>
+                        <p className="text-lg font-bold text-primary">{listing.price.toLocaleString()} FCFA/mois</p>
                       </CardContent>
                     </Card>
                   ))}
@@ -319,21 +381,21 @@ export default function AdminPage() {
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
                     <Key className="h-5 w-5" />
-                    Clés propriétaires actives
+                    Clés propriétaires
                   </CardTitle>
-                  <CardDescription>
-                    Ces clés permettent aux propriétaires de créer des comptes et de publier des annonces
-                  </CardDescription>
+                  <CardDescription>Toutes les clés générées pour les propriétaires</CardDescription>
                 </CardHeader>
                 <CardContent>
                   <div className="space-y-2">
-                    {proprietaireKeys.map((key, index) => (
-                      <div
-                        key={index}
-                        className="flex items-center justify-between p-3 bg-muted rounded-lg font-mono text-sm"
-                      >
-                        <span>{key}</span>
-                        <Badge variant="secondary">Active</Badge>
+                    {ownerKeys.map((key) => (
+                      <div key={key.id} className="flex items-center justify-between p-3 bg-muted rounded-lg">
+                        <div className="flex-1">
+                          <p className="font-mono text-sm font-semibold">{key.key_value}</p>
+                          {key.owner_email && <p className="text-xs text-muted-foreground mt-1">{key.owner_email}</p>}
+                        </div>
+                        <Badge variant={key.is_used ? "default" : "secondary"}>
+                          {key.is_used ? "Utilisée" : "Non utilisée"}
+                        </Badge>
                       </div>
                     ))}
                   </div>

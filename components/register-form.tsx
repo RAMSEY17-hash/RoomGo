@@ -10,22 +10,22 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { createClient } from "@/lib/supabase/client"
-import { useAuth } from "./auth-provider"
-import { AlertCircle, Shield } from "lucide-react"
+import { generateOwnerKey, sendOwnerKeyEmail } from "@/lib/owner-key-generator"
+import { AlertCircle, Shield, CheckCircle } from "lucide-react"
 
 export function RegisterForm() {
   const router = useRouter()
-  const { setUser } = useAuth()
   const [userType, setUserType] = useState("particulier")
   const [formData, setFormData] = useState({
     username: "",
     email: "",
     password: "",
     confirmPassword: "",
-    proprietaireKey: "",
+    phone: "", // Added phone field
   })
   const [error, setError] = useState("")
   const [isLoading, setIsLoading] = useState(false)
+  const [success, setSuccess] = useState(false)
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -45,26 +45,33 @@ export function RegisterForm() {
       return
     }
 
+    if (userType === "proprietaire" && !formData.phone) {
+      setError("Le numéro de téléphone est obligatoire pour les propriétaires")
+      setIsLoading(false)
+      return
+    }
+
     try {
       const supabase = createClient()
 
-      // Vérifier la clé propriétaire si nécessaire
+      let ownerKey: string | null = null
       if (userType === "proprietaire") {
-        const { data: keyData, error: keyError } = await supabase
-          .from("owner_keys")
-          .select("*")
-          .eq("key_value", formData.proprietaireKey)
-          .eq("is_used", false)
-          .single()
+        ownerKey = generateOwnerKey()
 
-        if (keyError || !keyData) {
-          setError("Clé propriétaire invalide ou déjà utilisée")
-          setIsLoading(false)
-          return
-        }
+        // Store the owner key in the database
+        const { error: keyError } = await supabase.from("owner_keys").insert({
+          key_value: ownerKey,
+          is_used: false,
+          owner_email: formData.email,
+        })
+
+        if (keyError) throw keyError
+
+        // Send the key via email (simulated)
+        sendOwnerKeyEmail(formData.email, ownerKey)
       }
 
-      // Créer le compte auth avec metadata
+      // Create the auth account with metadata
       const { data: authData, error: authError } = await supabase.auth.signUp({
         email: formData.email,
         password: formData.password,
@@ -73,28 +80,58 @@ export function RegisterForm() {
           data: {
             username: formData.username,
             user_type: userType === "proprietaire" ? "owner" : "student",
-            owner_key: userType === "proprietaire" ? formData.proprietaireKey : null,
+            owner_key: ownerKey,
+            phone: formData.phone,
           },
         },
       })
 
       if (authError) throw authError
 
-      // Marquer la clé comme utilisée si propriétaire
-      if (userType === "proprietaire" && authData.user) {
-        await supabase
-          .from("owner_keys")
-          .update({ is_used: true, used_by: authData.user.id })
-          .eq("key_value", formData.proprietaireKey)
+      if (userType === "proprietaire" && authData.user && ownerKey) {
+        await supabase.from("owner_keys").update({ is_used: true, used_by: authData.user.id }).eq("key_value", ownerKey)
       }
 
-      // Rediriger vers une page de confirmation
-      router.push("/auth/check-email")
+      setSuccess(true)
+
+      // Redirect after showing success message
+      setTimeout(() => {
+        router.push("/auth/check-email")
+      }, 3000)
     } catch (err: any) {
       setError(err.message || "Une erreur est survenue lors de l'inscription")
     } finally {
       setIsLoading(false)
     }
+  }
+
+  if (success && userType === "proprietaire") {
+    return (
+      <Card className="w-full max-w-md">
+        <CardHeader>
+          <CardTitle className="text-2xl flex items-center gap-2">
+            <CheckCircle className="h-6 w-6 text-green-500" />
+            Inscription réussie !
+          </CardTitle>
+          <CardDescription>Votre clé propriétaire a été générée</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <Alert>
+            <Shield className="h-4 w-4" />
+            <AlertDescription>
+              Votre clé propriétaire a été envoyée à votre adresse email <strong>{formData.email}</strong>.
+              <br />
+              <br />
+              Vous devrez fournir cette clé à chaque connexion. Conservez-la précieusement !
+              <br />
+              <br />
+              Vérifiez également votre boîte de réception pour confirmer votre email.
+            </AlertDescription>
+          </Alert>
+          <p className="text-sm text-muted-foreground text-center">Redirection vers la page de confirmation...</p>
+        </CardContent>
+      </Card>
+    )
   }
 
   return (
@@ -152,6 +189,23 @@ export function RegisterForm() {
             />
           </div>
 
+          {userType === "proprietaire" && (
+            <div className="space-y-2">
+              <Label htmlFor="phone">Numéro de téléphone *</Label>
+              <Input
+                id="phone"
+                type="tel"
+                required
+                placeholder="+228 90 12 34 56"
+                value={formData.phone}
+                onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+              />
+              <p className="text-sm text-muted-foreground">
+                Ce numéro sera visible sur vos annonces pour que les étudiants puissent vous contacter
+              </p>
+            </div>
+          )}
+
           <div className="space-y-2">
             <Label htmlFor="password">Mot de passe</Label>
             <Input
@@ -175,24 +229,13 @@ export function RegisterForm() {
           </div>
 
           {userType === "proprietaire" && (
-            <div className="space-y-2">
-              <Label htmlFor="proprietaireKey" className="flex items-center gap-2">
-                <Shield className="h-4 w-4 text-orange-600" />
-                Clé Propriétaire
-              </Label>
-              <Input
-                id="proprietaireKey"
-                type="text"
-                required
-                placeholder="PROP-XXXXXXXX"
-                value={formData.proprietaireKey}
-                onChange={(e) => setFormData({ ...formData, proprietaireKey: e.target.value })}
-              />
-              <p className="text-sm text-muted-foreground">
-                Vous devez avoir une clé propriétaire valide. Votre compte sera protégé par une authentification à deux
-                facteurs (2FA) par email.
-              </p>
-            </div>
+            <Alert>
+              <Shield className="h-4 w-4 text-orange-600" />
+              <AlertDescription>
+                Une clé propriétaire unique sera générée automatiquement et envoyée à votre email après l'inscription.
+                Cette clé sera nécessaire à chaque connexion pour sécuriser votre compte.
+              </AlertDescription>
+            </Alert>
           )}
 
           <Button type="submit" className="w-full" disabled={isLoading}>
