@@ -1,3 +1,7 @@
+"use client"
+
+import type React from "react"
+
 import Link from "next/link"
 import Image from "next/image"
 import { Card, CardContent, CardFooter, CardHeader } from "@/components/ui/card"
@@ -9,9 +13,11 @@ import { MapPin, School, MessageCircle } from "lucide-react"
 interface ListingCardProps {
   listing: Listing
   showStatus?: boolean
+  isOwner?: boolean
+  onDelete?: (id: string) => void
 }
 
-export function ListingCard({ listing, showStatus = false }: ListingCardProps) {
+export function ListingCard({ listing, showStatus = false, isOwner = false, onDelete }: ListingCardProps) {
   const typeLabels = {
     chambre: "Chambre",
     studio: "Studio",
@@ -28,6 +34,13 @@ export function ListingCard({ listing, showStatus = false }: ListingCardProps) {
     en_attente: "bg-yellow-500",
     validee: "bg-green-500",
     rejetee: "bg-red-500",
+  }
+
+  const handleDelete = (e: React.MouseEvent) => {
+    e.preventDefault()
+    if (confirm("Êtes-vous sûr de vouloir supprimer cette annonce ? Cette action est irréversible.")) {
+      onDelete?.(listing.id)
+    }
   }
 
   return (
@@ -73,12 +86,23 @@ export function ListingCard({ listing, showStatus = false }: ListingCardProps) {
       </CardContent>
 
       <CardFooter className="pt-3 border-t">
-        <Button asChild variant="outline" className="w-full bg-transparent">
-          <Link href={`/messages?proprietaire=${listing.proprietaireId}&listing=${listing.id}`}>
-            <MessageCircle className="h-4 w-4 mr-2" />
-            Contacter le propriétaire
-          </Link>
-        </Button>
+        {isOwner ? (
+          <div className="flex gap-2 w-full">
+            <Button asChild variant="outline" className="flex-1 bg-transparent">
+              <Link href={`/listings/${listing.id}`}>Voir les détails</Link>
+            </Button>
+            <Button variant="destructive" onClick={handleDelete} className="flex-1">
+              Supprimer
+            </Button>
+          </div>
+        ) : (
+          <Button asChild variant="outline" className="w-full bg-transparent">
+            <Link href={`/messages?proprietaire=${listing.proprietaireId}&listing=${listing.id}`}>
+              <MessageCircle className="h-4 w-4 mr-2" />
+              Contacter le propriétaire
+            </Link>
+          </Button>
+        )}
       </CardFooter>
     </Card>
   )

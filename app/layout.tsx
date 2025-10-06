@@ -8,8 +8,9 @@ import { Suspense } from "react"
 import "./globals.css"
 
 export const metadata: Metadata = {
-  title: "Lomé Housing - Trouvez votre logement idéal",
-  description: "Plateforme de gestion de logements à Lomé pour étudiants et propriétaires",
+  title: "RoomGo - Trouvez votre logement idéal à Lomé",
+  description:
+    "Plateforme sécurisée de gestion de logements à Lomé pour étudiants et propriétaires. Authentification 2FA pour propriétaires.",
   generator: "v0.app",
 }
 

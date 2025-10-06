@@ -7,10 +7,10 @@ export function HeroSection() {
       <div className="container">
         <div className="max-w-3xl mx-auto text-center space-y-6">
           <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold text-balance">
-            Trouvez votre logement idéal à Lomé
+            Trouvez votre logement idéal à Lomé avec RoomGo
           </h1>
           <p className="text-lg md:text-xl text-orange-50 text-pretty">
-            La plateforme qui connecte étudiants et propriétaires pour des logements sécurisés et abordables
+            La plateforme sécurisée qui connecte étudiants et propriétaires pour des logements abordables
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center pt-4">
             <Button size="lg" variant="secondary" className="text-lg">

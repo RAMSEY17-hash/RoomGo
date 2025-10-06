@@ -1,14 +1,14 @@
 import Link from "next/link"
 import { LoginForm } from "@/components/login-form"
 import { Button } from "@/components/ui/button"
+import { Logo } from "@/components/logo"
 
 export default function LoginPage() {
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-orange-50 to-amber-50 p-4">
       <div className="w-full max-w-md space-y-4">
-        <div className="text-center mb-8">
-          <h1 className="text-4xl font-bold text-orange-600 mb-2">Lomé Housing</h1>
-          <p className="text-muted-foreground">Votre logement idéal à Lomé</p>
+        <div className="flex justify-center mb-8">
+          <Logo className="scale-150" />
         </div>
 
         <LoginForm />

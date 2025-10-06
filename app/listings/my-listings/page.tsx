@@ -8,14 +8,18 @@ import { ListingCard } from "@/components/listing-card"
 import { Button } from "@/components/ui/button"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { useAuth } from "@/components/auth-provider"
-import { mockListings } from "@/lib/mock-data"
 import type { Listing } from "@/lib/types"
 import { PlusCircle } from "lucide-react"
+import { createBrowserClient } from "@/lib/supabase/client"
+import { useToast } from "@/hooks/use-toast"
 
 export default function MyListingsPage() {
   const { user, isLoading } = useAuth()
   const router = useRouter()
   const [listings, setListings] = useState<Listing[]>([])
+  const [loading, setLoading] = useState(true)
+  const { toast } = useToast()
+  const supabase = createBrowserClient()
 
   useEffect(() => {
     if (!isLoading && (!user || user.type !== "proprietaire")) {
@@ -24,20 +28,76 @@ export default function MyListingsPage() {
     }
 
     if (user) {
-      // Charger les annonces du localStorage
-      const listingsStr = localStorage.getItem("lome_housing_listings")
-      const storedListings: Listing[] = listingsStr ? JSON.parse(listingsStr) : []
-
-      // Combiner avec les annonces mockées
-      const allListings = [...mockListings, ...storedListings]
-
-      // Filtrer les annonces de l'utilisateur
-      const userListings = allListings.filter((l) => l.proprietaireId === user.id)
-      setListings(userListings)
+      loadListings()
     }
   }, [user, isLoading, router])
 
-  if (isLoading || !user || user.type !== "proprietaire") {
+  const loadListings = async () => {
+    try {
+      const { data, error } = await supabase
+        .from("listings")
+        .select("*")
+        .eq("proprietaire_id", user?.id)
+        .order("created_at", { ascending: false })
+
+      if (error) throw error
+
+      // Transform database format to app format
+      const transformedListings: Listing[] = (data || []).map((item) => ({
+        id: item.id,
+        titre: item.titre,
+        description: item.description,
+        type: item.type,
+        prix: item.prix,
+        quartier: item.quartier,
+        ecolesProches: item.ecoles_proches || [],
+        images: item.images || [],
+        proprietaireId: item.proprietaire_id,
+        proprietaireNom: item.proprietaire_nom,
+        status: item.status,
+        datePublication: item.created_at,
+        superficie: item.superficie,
+        nombrePieces: item.nombre_pieces,
+        equipements: item.equipements || [],
+      }))
+
+      setListings(transformedListings)
+    } catch (error) {
+      console.error("[v0] Error loading listings:", error)
+      toast({
+        title: "Erreur",
+        description: "Impossible de charger vos annonces",
+        variant: "destructive",
+      })
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleDeleteListing = async (listingId: string) => {
+    try {
+      const { error } = await supabase.from("listings").delete().eq("id", listingId)
+
+      if (error) throw error
+
+      toast({
+        title: "Annonce supprimée",
+        description: "Votre annonce a été supprimée avec succès",
+      })
+
+      // Refresh listings
+      loadListings()
+    } catch (error) {
+      console.error("[v0] Error deleting listing:", error)
+      toast({
+        title: "Erreur",
+        description: "Impossible de supprimer l'annonce",
+        variant: "destructive",
+      })
+    }
+  }
+
+  if (isLoading || loading || !user || user.type !== "proprietaire") {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
@@ -80,7 +140,7 @@ export default function MyListingsPage() {
               {listings.length > 0 ? (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                   {listings.map((listing) => (
-                    <ListingCard key={listing.id} listing={listing} showStatus />
+                    <ListingCard key={listing.id} listing={listing} showStatus isOwner onDelete={handleDeleteListing} />
                   ))}
                 </div>
               ) : (
@@ -100,7 +160,7 @@ export default function MyListingsPage() {
               {enAttenteListings.length > 0 ? (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                   {enAttenteListings.map((listing) => (
-                    <ListingCard key={listing.id} listing={listing} showStatus />
+                    <ListingCard key={listing.id} listing={listing} showStatus isOwner onDelete={handleDeleteListing} />
                   ))}
                 </div>
               ) : (
@@ -114,7 +174,7 @@ export default function MyListingsPage() {
               {valideesListings.length > 0 ? (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                   {valideesListings.map((listing) => (
-                    <ListingCard key={listing.id} listing={listing} showStatus />
+                    <ListingCard key={listing.id} listing={listing} showStatus isOwner onDelete={handleDeleteListing} />
                   ))}
                 </div>
               ) : (
@@ -128,7 +188,7 @@ export default function MyListingsPage() {
               {rejeteesListings.length > 0 ? (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                   {rejeteesListings.map((listing) => (
-                    <ListingCard key={listing.id} listing={listing} showStatus />
+                    <ListingCard key={listing.id} listing={listing} showStatus isOwner onDelete={handleDeleteListing} />
                   ))}
                 </div>
               ) : (
