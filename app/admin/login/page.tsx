@@ -31,13 +31,17 @@ export default function AdminLoginPage() {
     setIsLoading(true)
 
     try {
+      console.log("[v0] Admin login attempt for:", email)
+
       // Check if email is in admin whitelist
       if (!isAdminEmail(email)) {
+        console.log("[v0] Email not in whitelist")
         setError("Accès refusé. Cette page est réservée aux administrateurs.")
         setIsLoading(false)
         return
       }
 
+      console.log("[v0] Email is in whitelist, attempting Supabase auth...")
       const supabase = createBrowserClient()
 
       // Attempt to sign in
@@ -47,16 +51,20 @@ export default function AdminLoginPage() {
       })
 
       if (signInError) {
+        console.log("[v0] Supabase auth error:", signInError)
         setError("Email ou mot de passe incorrect")
         setIsLoading(false)
         return
       }
 
       if (!data.user) {
+        console.log("[v0] No user data returned")
         setError("Erreur d'authentification")
         setIsLoading(false)
         return
       }
+
+      console.log("[v0] Supabase auth successful, checking user_type in database...")
 
       // Verify user is admin in database
       const { data: userData, error: userError } = await supabase
@@ -65,12 +73,26 @@ export default function AdminLoginPage() {
         .eq("email", email)
         .single()
 
-      if (userError || userData?.user_type !== "admin") {
+      console.log("[v0] User data from database:", userData)
+      console.log("[v0] User error:", userError)
+
+      if (userError) {
+        console.log("[v0] Error fetching user data:", userError)
+        await supabase.auth.signOut()
+        setError(`Erreur: ${userError.message}. Veuillez contacter l'administrateur système.`)
+        setIsLoading(false)
+        return
+      }
+
+      if (userData?.user_type !== "admin") {
+        console.log("[v0] User type is not admin:", userData?.user_type)
         await supabase.auth.signOut()
         setError("Accès refusé. Vous n'êtes pas administrateur.")
         setIsLoading(false)
         return
       }
+
+      console.log("[v0] Admin verification successful, generating 2FA code...")
 
       // Generate and send 2FA code
       const code = generateTwoFactorCode()
@@ -80,6 +102,7 @@ export default function AdminLoginPage() {
       setShow2FA(true)
       setIsLoading(false)
     } catch (err) {
+      console.log("[v0] Unexpected error:", err)
       setError("Une erreur est survenue")
       setIsLoading(false)
     }

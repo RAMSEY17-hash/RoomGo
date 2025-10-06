@@ -11,6 +11,7 @@ import { useAuth } from "@/components/auth-provider"
 import { filterListings, getActiveFiltersCount } from "@/lib/filter-utils"
 import type { Listing, ListingType, Quartier, Ecole } from "@/lib/types"
 import { createBrowserClient } from "@/lib/supabase/client"
+import { mockListings } from "@/lib/mock-data"
 
 const DEFAULT_FILTERS: FilterOptions = {
   types: [],
@@ -29,7 +30,22 @@ export default function HomePage() {
   useEffect(() => {
     const loadListings = async () => {
       try {
+        const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+        const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+
+        if (!supabaseUrl || !supabaseKey) {
+          console.log("[v0] Supabase not configured, using mock data")
+          // Use mock data filtered to only show validated listings
+          const validatedMockListings = mockListings.filter((listing) => listing.status === "validee")
+          setAllListings(validatedMockListings)
+          setFilteredListings(validatedMockListings)
+          setIsLoadingListings(false)
+          return
+        }
+
         const supabase = createBrowserClient()
+        console.log("[v0] Loading listings from Supabase...")
+
         const { data, error } = await supabase
           .from("listings")
           .select("*")
@@ -37,16 +53,33 @@ export default function HomePage() {
           .order("created_at", { ascending: false })
 
         if (error) {
-          console.error("[v0] Error loading listings:", error)
+          console.error("[v0] Supabase error:", error.message)
+          console.log("[v0] Falling back to mock data")
+          // Fallback to mock data
+          const validatedMockListings = mockListings.filter((listing) => listing.status === "validee")
+          setAllListings(validatedMockListings)
+          setFilteredListings(validatedMockListings)
           return
         }
 
-        if (data) {
+        if (data && data.length > 0) {
+          console.log(`[v0] Loaded ${data.length} listings from Supabase`)
           setAllListings(data)
           setFilteredListings(data)
+        } else {
+          console.log("[v0] No listings in database, using mock data")
+          // Use mock data if database is empty
+          const validatedMockListings = mockListings.filter((listing) => listing.status === "validee")
+          setAllListings(validatedMockListings)
+          setFilteredListings(validatedMockListings)
         }
       } catch (error) {
         console.error("[v0] Error loading listings:", error)
+        console.log("[v0] Using mock data as fallback")
+        // Fallback to mock data on any error
+        const validatedMockListings = mockListings.filter((listing) => listing.status === "validee")
+        setAllListings(validatedMockListings)
+        setFilteredListings(validatedMockListings)
       } finally {
         setIsLoadingListings(false)
       }
