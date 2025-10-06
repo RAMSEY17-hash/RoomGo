@@ -1,0 +1,68 @@
+// Données mockées pour la démo
+
+import type { Listing, ListingStatus } from "./types"
+
+export const mockListings: Listing[] = [
+  {
+    id: "1",
+    proprietaireId: "demo-proprio-1",
+    proprietaireName: "Jean Kouassi",
+    type: "chambre",
+    titre: "Chambre confortable près de l'IAI",
+    description:
+      "Belle chambre meublée dans un quartier calme, à 5 minutes de l'IAI-TOGO. Idéale pour étudiant. La chambre dispose d'un lit confortable, d'une armoire spacieuse et d'un bureau pour étudier. L'eau courante est disponible 24h/24.",
+    prix: 25000,
+    quartier: "Tokoin",
+    ecolesProches: ["IAI-TOGO", "Université de Lomé"],
+    images: ["/chambre-moderne-afrique.jpg"],
+    status: "validee" as ListingStatus,
+    createdAt: new Date("2025-01-15").toISOString(),
+    updatedAt: new Date("2025-01-15").toISOString(),
+    superficie: 15,
+    equipements: ["Lit", "Armoire", "Ventilateur", "Eau courante", "Bureau"],
+    adresse: "Tokoin Gbadago, près du carrefour principal",
+    telephone: "+228 90 12 34 56",
+  },
+  {
+    id: "2",
+    proprietaireId: "demo-proprio-2",
+    proprietaireName: "Marie Agbodjan",
+    type: "studio",
+    titre: "Studio moderne à Adidogomé",
+    description:
+      "Studio tout équipé avec cuisine et salle de bain privée. Quartier sécurisé avec gardien. Parfait pour un étudiant ou jeune professionnel cherchant son indépendance. Le studio est lumineux et bien ventilé.",
+    prix: 45000,
+    quartier: "Adidogomé",
+    ecolesProches: ["LBS", "ESTBA"],
+    images: ["/studio-moderne-cuisine.jpg"],
+    status: "validee" as ListingStatus,
+    createdAt: new Date("2025-01-20").toISOString(),
+    updatedAt: new Date("2025-01-20").toISOString(),
+    superficie: 25,
+    nombreChambres: 1,
+    equipements: ["Cuisine équipée", "Climatisation", "Eau courante", "Électricité", "Salle de bain privée"],
+    adresse: "Adidogomé Assiyéyé, derrière la station Total",
+    telephone: "+228 91 23 45 67",
+  },
+  {
+    id: "3",
+    proprietaireId: "demo-proprio-1",
+    proprietaireName: "Jean Kouassi",
+    type: "appartement",
+    titre: "Appartement 2 chambres à Légbassito",
+    description:
+      "Grand appartement avec salon spacieux, 2 chambres, cuisine équipée et salle de bain moderne. Parfait pour colocation entre étudiants. Situé dans un quartier calme et sécurisé avec parking disponible.",
+    prix: 80000,
+    quartier: "Légbassito",
+    ecolesProches: ["EPL", "IFAG"],
+    images: ["/appartement-salon-afrique.jpg"],
+    status: "en_attente" as ListingStatus,
+    createdAt: new Date("2025-01-25").toISOString(),
+    updatedAt: new Date("2025-01-25").toISOString(),
+    superficie: 60,
+    nombreChambres: 2,
+    equipements: ["Salon", "Cuisine équipée", "Eau courante", "Électricité", "Parking", "2 Salles de bain"],
+    adresse: "Légbassito Ouest, près du marché",
+    telephone: "+228 90 12 34 56",
+  },
+]
