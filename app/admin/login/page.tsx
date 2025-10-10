@@ -1,8 +1,6 @@
 "use client"
 
-import type React from "react"
-
-import { useState } from "react"
+import React, { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -31,70 +29,42 @@ export default function AdminLoginPage() {
     setIsLoading(true)
 
     try {
-      console.log("[v0] Admin login attempt for:", email)
+      const supabase = createBrowserClient()
 
-      // Check if email is in admin whitelist
+      // Vérifie la whitelist
       if (!isAdminEmail(email)) {
-        console.log("[v0] Email not in whitelist")
         setError("Accès refusé. Cette page est réservée aux administrateurs.")
         setIsLoading(false)
         return
       }
 
-      console.log("[v0] Email is in whitelist, attempting Supabase auth...")
-      const supabase = createBrowserClient()
-
-      // Attempt to sign in
+      // Tentative de connexion Supabase
       const { data, error: signInError } = await supabase.auth.signInWithPassword({
         email,
         password,
       })
 
-      if (signInError) {
-        console.log("[v0] Supabase auth error:", signInError)
+      if (signInError || !data.user) {
         setError("Email ou mot de passe incorrect")
         setIsLoading(false)
         return
       }
 
-      if (!data.user) {
-        console.log("[v0] No user data returned")
-        setError("Erreur d'authentification")
-        setIsLoading(false)
-        return
-      }
-
-      console.log("[v0] Supabase auth successful, checking user_type in database...")
-
-      // Verify user is admin in database
+      // Vérifie le type d'utilisateur dans la table users
       const { data: userData, error: userError } = await supabase
         .from("users")
         .select("user_type")
         .eq("email", email)
         .single()
 
-      console.log("[v0] User data from database:", userData)
-      console.log("[v0] User error:", userError)
-
-      if (userError) {
-        console.log("[v0] Error fetching user data:", userError)
-        await supabase.auth.signOut()
-        setError(`Erreur: ${userError.message}. Veuillez contacter l'administrateur système.`)
-        setIsLoading(false)
-        return
-      }
-
-      if (userData?.user_type !== "admin") {
-        console.log("[v0] User type is not admin:", userData?.user_type)
+      if (userError || userData?.user_type !== "admin") {
         await supabase.auth.signOut()
         setError("Accès refusé. Vous n'êtes pas administrateur.")
         setIsLoading(false)
         return
       }
 
-      console.log("[v0] Admin verification successful, generating 2FA code...")
-
-      // Generate and send 2FA code
+      // Génère et envoie le code 2FA
       const code = generateTwoFactorCode()
       await sendTwoFactorEmail(email, code, data.user.id)
 
@@ -102,15 +72,19 @@ export default function AdminLoginPage() {
       setShow2FA(true)
       setIsLoading(false)
     } catch (err) {
-      console.log("[v0] Unexpected error:", err)
+      console.error("Erreur login admin:", err)
       setError("Une erreur est survenue")
       setIsLoading(false)
     }
   }
 
-  const handle2FASuccess = () => {
-    router.push("/admin")
+  // Appelé après validation 2FA
+  const handle2FASuccess = async () => {
+    const supabase = createBrowserClient()
+    await supabase.auth.getSession() // rafraîchit la session
+    router.push("/admin") // redirige vers dashboard
   }
+  
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-orange-50 via-amber-50 to-orange-100 p-4">
@@ -192,12 +166,12 @@ export default function AdminLoginPage() {
         </div>
       </div>
 
+      {/* ✅ Ajouter le modal TwoFactor ici, à la fin du JSX */}
       <TwoFactorModal
         isOpen={show2FA}
-        onClose={() => setShow2FA(false)}
-        onSuccess={handle2FASuccess}
         userId={userId}
-        email={email}
+        onVerified={() => router.push("/admin")}
+        onCancel={() => setShow2FA(false)}
       />
     </div>
   )

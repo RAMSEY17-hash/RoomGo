@@ -1,7 +1,5 @@
 "use client"
 
-import type React from "react"
-
 import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -31,12 +29,11 @@ export function TwoFactorModal({ isOpen, userId, onVerified, onCancel }: TwoFact
   const [isLoading, setIsLoading] = useState(false)
   const [email, setEmail] = useState("")
 
+  // Récupère l'email lorsque le modal s'ouvre
   useEffect(() => {
     if (isOpen) {
       getTwoFactorEmail(userId).then((userEmail) => {
-        if (userEmail) {
-          setEmail(userEmail)
-        }
+        if (userEmail) setEmail(userEmail)
       })
     }
   }, [isOpen, userId])
@@ -57,9 +54,7 @@ export function TwoFactorModal({ isOpen, userId, onVerified, onCancel }: TwoFact
   }
 
   const handleKeyPress = (e: React.KeyboardEvent) => {
-    if (e.key === "Enter" && code.length === 6) {
-      handleVerify()
-    }
+    if (e.key === "Enter" && code.length === 6) handleVerify()
   }
 
   return (
@@ -73,7 +68,7 @@ export function TwoFactorModal({ isOpen, userId, onVerified, onCancel }: TwoFact
             <DialogTitle className="text-xl">Authentification à deux facteurs</DialogTitle>
           </div>
           <DialogDescription>
-            Pour sécuriser votre compte propriétaire, veuillez entrer le code à 6 chiffres envoyé à votre adresse email.
+            Pour sécuriser votre compte, veuillez entrer le code à 6 chiffres envoyé à votre adresse email.
           </DialogDescription>
         </DialogHeader>
 
@@ -111,8 +106,7 @@ export function TwoFactorModal({ isOpen, userId, onVerified, onCancel }: TwoFact
           <Alert>
             <AlertCircle className="h-4 w-4" />
             <AlertDescription className="text-xs">
-              En mode démo, le code est affiché dans la console du navigateur (F12). En production, il serait envoyé par
-              email.
+              En mode démo, le code est affiché dans la console du navigateur (F12). En production, il serait envoyé par email.
             </AlertDescription>
           </Alert>
         </div>

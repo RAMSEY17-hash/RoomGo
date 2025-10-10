@@ -207,6 +207,8 @@ export default function HomePage() {
           <p>&copy; 2025 RoomGo. Tous droits réservés.</p>
         </div>
       </footer>
+
+                
     </div>
   )
 }

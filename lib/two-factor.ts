@@ -5,8 +5,8 @@ export function generateTwoFactorCode(): string {
   return Math.floor(100000 + Math.random() * 900000).toString()
 }
 
-// Envoyer un email de 2FA
-export async function sendTwoFactorEmail(email: string, code: string, userId: string): Promise<void> {
+// Envoyer un email de 2FA et retourner le code (utile en mode dev)
+export async function sendTwoFactorEmail(email: string, code: string, userId: string): Promise<string> {
   try {
     const supabase = createClient()
 
@@ -20,9 +20,12 @@ export async function sendTwoFactorEmail(email: string, code: string, userId: st
       expires_at: expiresAt.toISOString(),
     })
 
-    // Simuler l'envoi de l'email (en production, utiliser un service de messagerie réel)
+    // Simuler l'envoi de l'email (en prod, utiliser un service de messagerie)
     console.log(`[v0] 2FA Code for ${email}: ${code}`)
     console.log(`[v0] Code expires at: ${expiresAt.toLocaleString()}`)
+
+    // Retourner le code pour l'utiliser dans le modal
+    return code
   } catch (error) {
     console.error("[v0] Error sending 2FA email:", error)
     throw error
@@ -34,7 +37,6 @@ export async function verifyTwoFactorCode(userId: string, code: string): Promise
   try {
     const supabase = createClient()
 
-    // Récupérer le code de l'utilisateur
     const { data: codeData, error: codeError } = await supabase
       .from("two_factor_codes")
       .select("*")
@@ -43,23 +45,15 @@ export async function verifyTwoFactorCode(userId: string, code: string): Promise
       .limit(1)
       .single()
 
-    if (codeError || !codeData) {
-      return { success: false, error: "Aucun code trouvé" }
-    }
+    if (codeError || !codeData) return { success: false, error: "Aucun code trouvé" }
 
-    // Vérifier l'expiration
     if (new Date(codeData.expires_at) < new Date()) {
-      // Supprimer le code expiré
       await supabase.from("two_factor_codes").delete().eq("id", codeData.id)
       return { success: false, error: "Le code a expiré. Veuillez vous reconnecter." }
     }
 
-    // Vérifier le code
-    if (codeData.code !== code) {
-      return { success: false, error: "Code incorrect" }
-    }
+    if (codeData.code !== code) return { success: false, error: "Code incorrect" }
 
-    // Supprimer le code après vérification réussie
     await supabase.from("two_factor_codes").delete().eq("id", codeData.id)
 
     return { success: true }
@@ -72,12 +66,8 @@ export async function getTwoFactorEmail(userId: string): Promise<string | null> 
   try {
     const supabase = createClient()
 
-    // Récupérer l'email de l'utilisateur
     const { data: userData, error: userError } = await supabase.from("users").select("email").eq("id", userId).single()
-
-    if (userError || !userData) {
-      return null
-    }
+    if (userError || !userData) return null
 
     return userData.email
   } catch (error) {
